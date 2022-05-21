@@ -174,7 +174,7 @@
 +automl = autosklearn.classification.AutoSklearnClassifier()
 +automl.fit(x_test, y_test, dataset_name='data2')
 +
-+#Plot and review all pipeline models built
++#Plot and review all pipeline models built and select the best performing pipeline for use
 +import PipelineProfiler
 +profiler_data = PipelineProfiler.import_autosklearn(automl)
 +PipelineProfiler.plot_pipeline_matrix(profiler_data)
