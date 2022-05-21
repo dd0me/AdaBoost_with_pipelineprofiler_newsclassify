@@ -1,0 +1,182 @@
++#Import libraries
++import pandas as pd
++import numpy as np
++import pandas as pd
++import matplotlib.pyplot as plt
+
++import nltk
++from nltk.corpus import stopwords
++import re
++from nltk.stem import WordNetLemmatizer
++from sklearn.feature_extraction.text import TfidfVectorizer
++from sklearn.metrics import accuracy_score,confusion_matrix
++from sklearn.ensemble import AdaBoostClassifier
++from sklearn.tree import DecisionTreeClassifier
++from sklearn.model_selection import train_test_split
++import pickle
++import seaborn as sns
++import time
++from google.colab import files 
++import io
++
++#Import more libraries and download missing nltk components, this model is run on google colab
++import nltk
++nltk.download('stopwords')
++nltk.download('punkt')
++nltk.download('wordnet')
++
++#Upload data
++uploaded = files.upload()
++path="/content/datafilename.xlsx"
++sheet_name = "Sheet2"
++df=pd.read_excel(path,sheet_name)
++
++#Drop unwanted columns or variables
++df1=df.drop(['Title','Text_Resized', 'Embedded URLs',
++       'Actual_URLs', 'Subject', 'Date', 'Month', 'Month words', 'Entity',
++       'Likes', 'Flagged_in_fact_checker_sites',
++       'Account_Holder_Profile_Genuine', 'Category'],axis = 1)
++
++#Rearrange after dropping unwanted columns
++df2=df1.reindex(columns= ['Label','Text_resized_2'])
++
++#Rename columns
++df2.columns = ['Label', 'Text']
++data=df2
++#Then let's take a look at the lenghts by class.
++data["len"] = [len(text) for text in data["Text"].values]
++data.groupby("Label")["len"].mean()
++
++#Drop entire rows if cell is blank
++data=data.dropna()
++
++#Text cleaning function
++def cleanText(text):
+    
++    lemma = WordNetLemmatizer()
++    stp = stopwords.words('english')
+    
++    # This means remove everything except alphabetical and numerical characters
++    text = re.sub("[^a-zA-Z0-9]"," ",text)
+    
++    text = text.lower()
+    
++    # This mean split sentences by words ("I am good" => ["I","am","good"])
++    text = nltk.word_tokenize(text)
+    
++    # Lemmatizers convert words to their base form using dictionaries (going => go, bees => be , dog => dog)
++    text = [lemma.lemmatize(word) for word in text]
+    
++    # We should remove stopwords, stopwords are the words that has no special meaning such as I,You,Me,Was
++    text = [word for word in text if word not in stp]
+    
++    # Everything is ready, now we just need join the elements of lists (["feel","good"] => "feel good")
++    text = " ".join(text)
+    
++    return text
++ 
++#Text cleaning using our function
++start_time = time.time()
++cleanedText = []
++for text in data["Text"]:
++    
++    cleanedText.append(cleanText(text))
++end_time = time.time()
++process_time = round(end_time-start_time,2)
++
++print("="*10)
++print("Texts are cleaned, this process took {} seconds \n \n".format(process_time))
++
++print(cleanedText[45])
++
++#Before moving on to the next section, let's encode our labels. Let negatives be 0, neutrals be 1 and positives be 2
++data["Label"].value_counts()
++
++# First, we need a vectorizer object
++vectorizer = TfidfVectorizer(max_features=4000)
++# This means just consider most used 4000 words
++
++start = time.time()
++
++x = vectorizer.fit_transform(cleanedText).toarray()
++
++process_time = round(time.time()-start,2)
++
++print("Vectorizing cleaned text using TF-IDF approach took {} seconds".format(process_time))
++
++x.shape
++
++#Subset for training and test data
++data2=data.iloc[:,0:2]
++y1=data.Label
++y2=np.array(y1.values.tolist())
++y=y2
++
++#Last step before modeling is splitting dataset into train and test.
++y_train,y_test,x_train,x_test = train_test_split(y,x,random_state=1,test_size=0.2)
++
++#View after spliting
++print(x_train.shape)
++print(x_test.shape)
++print(y_train.shape)
++print(y_test.shape)
++
++# We'll use 100 weak learners to build a strong learner
++classifier = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(),n_estimators=100)
++classifier.fit(x_train,y_train)
++
++AdaBoostClassifier(base_estimator=DecisionTreeClassifier(), n_estimators=100)
++y_pred = classifier.predict(x_test)
++
++print("Test set accuracy of our Adaboost Classifier is {}".format(round(accuracy_score(y_pred,y_test)*100,2)))
+
++plt.subplots(figsize=(6,6))
++sns.heatmap(confusion_matrix(y_pred=y_pred,y_true=y_test),annot=True,fmt=".1f",linewidths=1.5,cmap="BuPu_r")
++plt.show()
++
++#Import libraries to lay out performance accuracy
++from sklearn.datasets import make_classification
+
++from sklearn.metrics import accuracy_score
++from sklearn.base import clone
++from sklearn.base import BaseEstimator
++from sklearn.metrics import accuracy_score
++from sklearn.decomposition import PCA
++
++from sklearn.metrics import precision_score, recall_score, f1_score
++
++print(f"Model Precision: {precision_score(y_test, y_pred)}")
++print(f"Model Recall: {recall_score(y_test, y_pred)}")
++print(f"Model F1-score: {f1_score(y_test, y_pred)}")
++
++# roc curve 
++from sklearn.metrics import roc_curve
++fpr, tpr, thresholdsh = roc_curve(y_test, y_pred)
++
++def plot_roc_curve(fpr, tpr, label=None):
++    plt.plot(fpr, tpr, linewidth=2, label=label)
++    plt.plot([0, 1], [0, 1], 'k--')
++    plt.axis([0, 1, 0, 1])
++    plt.xlabel('False Positive Rate (Fall-Out)', fontsize=16)
++    plt.ylabel('True Positive Rate (Recall)', fontsize=16)
++    plt.grid(True)
++
++plt.figure(figsize=(8, 6))
++plot_roc_curve(fpr, tpr)
++
++pip install PipelineProfiler
++pip install auto-sklearn
++pip install scipy
++import autosklearn.classification
+#x_train, y_train = sklearn.datasets.load_digits(return_x_y=True)
++x_train, y_train = data2(return_x_y=True)
++#Effect autoML model building and tuning
++automl = autosklearn.classification.AutoSklearnClassifier()
++automl.fit(x_test, y_test, dataset_name='data2')
++
++#Plot and review all pipeline models built
++import PipelineProfiler
++profiler_data = PipelineProfiler.import_autosklearn(automl)
++PipelineProfiler.plot_pipeline_matrix(profiler_data)
++
++
